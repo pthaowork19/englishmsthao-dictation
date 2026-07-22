@@ -1,4 +1,156 @@
- const firebaseConfig = {
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dictation Class - Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .app-container { display: flex; gap: 20px; max-width: 1000px; width: 100%; flex-wrap: wrap; transition: 0.3s; }
+        .panel { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); flex: 1; min-width: 300px; }
+        h2 { margin-top: 0; color: #2c3e50; font-size: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 14px;}
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;}
+        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; resize: vertical; box-sizing: border-box;}
+        
+        .btn-add, .btn-action { background-color: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; margin-top: 5px;}
+        .btn-add { width: 100%; font-size: 16px; margin-top: 10px; }
+        .btn-add:hover, .btn-action:hover { background-color: #219a52; }
+        
+        .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold;}
+        .btn-secondary:hover { background-color: #7f8c8d; }
+
+        .lesson-list { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; }
+        .folder-title { font-size: 16px; color: #7f8c8d; margin: 15px 0 5px 0; border-bottom: 1px dashed #ccc; padding-bottom: 5px;}
+        .lesson-item { padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid transparent; display: flex; justify-content: space-between; align-items: center;}
+        .lesson-item:hover { background: #e9ecef; }
+        .lesson-item.active { border-left-color: #3498db; background: #e3f2fd; font-weight: bold; }
+        .btn-delete { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px;}
+        .btn-delete:hover { background: #c0392b; }
+
+        .practice-area { flex: 2; min-width: 400px; }
+        audio { width: 100%; margin-bottom: 5px; outline: none; }
+        #pause-notice { color: #d35400; font-size: 14px; font-style: italic; margin-bottom: 15px; display: none; }
+        
+        .segment-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;}
+        .badge { background: #34495e; color: white; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold;}
+        
+        .btn-check { background-color: #3498db; color: white; border: none; padding: 12px 30px; font-size: 16px; border-radius: 6px; cursor: pointer; margin-top: 10px; font-weight: bold;}
+        .btn-check:hover { background-color: #2980b9; }
+        
+        #result { margin-top: 15px; font-size: 16px; font-weight: bold; }
+        .correct { color: #27ae60; }
+        .incorrect { color: #c0392b; }
+        
+        .completed-board { margin-top: 20px; padding: 15px; background: #fdfefe; border: 1px solid #d0ece7; border-radius: 6px; }
+        .completed-chunk { margin: 0 0 8px 0; color: #117a65; font-size: 15px; border-left: 3px solid #1abc9c; padding-left: 10px;}
+        
+        .empty-state { text-align: center; color: #7f8c8d; padding: 50px 0; font-style: italic;}
+        .share-box { margin-top: 15px; padding: 15px; background: #e8f8f5; border: 1px solid #1abc9c; border-radius: 6px; display: none; }
+        .share-box p { margin: 0 0 5px 0; font-size: 14px; color: #16a085; font-weight: bold;}
+        .share-box input { background: white; }
+        body.student-mode .panel:first-child { display: none; }
+        body.student-mode .practice-area { max-width: 800px; margin: 0 auto; }
+        #loading { text-align: center; font-size: 18px; color: #3498db; margin-top: 50px; display: none; width: 100%;}
+        
+        /* Chỉnh CSS cho khu vực lấy mốc */
+        .audio-tool { background: #f0f3f4; padding: 10px; border-radius: 6px; margin-top: 5px; border: 1px solid #d5dbdb;}
+    </style>
+</head>
+<body>
+    <div id="loading">⏳ Đang kết nối dữ liệu...</div>
+    <div class="app-container" id="main-app" style="display: none;">
+        
+        <!-- CỘT TRÁI -->
+        <div class="panel">
+            <h2>➕ Thêm bài nghe mới</h2>
+            <div class="form-group">
+                <label>1. Thư mục (Tên bài test / Bộ sách)</label>
+                <input type="text" id="folder-name" placeholder="VD: Listening Test 1">
+            </div>
+            <div class="form-group">
+                <label>2. Tên bài tập cụ thể</label>
+                <input type="text" id="lesson-name" placeholder="VD: Part 1 - Bức tranh">
+            </div>
+            <div class="form-group">
+                <label>3. Link Audio (Trực tiếp)</label>
+                <input type="text" id="audio-url" placeholder="Dán link mp3 vào đây...">
+                
+                <!-- CÔNG CỤ XỬ LÝ AUDIO TRỰC TIẾP -->
+                <div class="audio-tool">
+                    <button class="btn-secondary" id="btn-load-tool" type="button" style="width: 100%; margin-bottom: 10px;">Tải Audio để bắt mốc</button>
+                    <audio id="teacher-audio" controls style="display: none;"></audio>
+                    <button class="btn-action" id="btn-capture-pause" type="button" style="display: none; width: 100%; background: #8e44ad;">📍 Đánh dấu ngắt (Hoặc ấn phím Space)</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>4. Các mốc tự ngắt (Được tự động điền)</label>
+                <input type="text" id="pause-input" placeholder="Bạn có thể sửa tay nếu muốn...">
+                <button class="btn-secondary" id="btn-clear-pause" type="button" style="font-size: 12px; margin-top: 5px; padding: 5px 10px;">Xóa làm lại</button>
+            </div>
+            <div class="form-group">
+                <label>5. Transcript (Mỗi đoạn ngắt là 1 dòng)</label>
+                <textarea id="transcript-input" rows="5" placeholder="Gõ xong 1 đoạn hãy bấm Enter xuống dòng cho đoạn tiếp theo..."></textarea>
+            </div>
+            <button class="btn-add" id="btn-add">Đăng bài lên hệ thống</button>
+            
+            <h2 style="margin-top: 30px;">📚 Kho bài tập của bạn</h2>
+            <div id="lesson-list-container">
+                <ul class="lesson-list" id="lesson-list"></ul>
+            </div>
+        </div>
+
+        <!-- CỘT PHẢI -->
+        <div class="panel practice-area">
+            <h2>🎧 Khu vực Luyện tập</h2>
+            <div id="practice-content" style="display: none;">
+                <h3 id="current-lesson-title" style="color: #3498db; margin-top:0;">Đang học: ...</h3>
+                
+                <div class="share-box" id="share-box">
+                    <p>🔗 Link giao bài cho học sinh:</p>
+                    <input type="text" id="share-link" readonly onclick="this.select()">
+                </div>
+                <br>
+                
+                <audio id="audio-player" controls></audio>
+                
+                <div id="pause-notice">
+                    <span style="color: #d35400; font-weight: bold;">⏸️ Audio đã dừng. Hãy gõ đáp án và bấm Enter để kiểm tra.</span>
+                </div>
+                
+                <div class="segment-info">
+                    <label>Gõ đáp án cho đoạn âm thanh vừa phát:</label>
+                    <span class="badge" id="segment-badge">Đoạn 1 / 1</span>
+                </div>
+                
+                <textarea id="user-input" rows="4" placeholder="Nhập đáp án... (Bấm Enter để nộp bài, Shift+Enter để xuống dòng)"></textarea>
+                
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="btn-check" id="btn-check" style="flex: 2; margin-top: 0;">Kiểm tra đáp án (Enter)</button>
+                    <!-- NÚT NGHE LẠI ĐOẠN HIỆN TẠI -->
+                    <button class="btn-secondary" id="btn-replay" style="flex: 1; margin-top: 0; background: #e67e22;">🔄 Nghe lại đoạn này</button>
+                </div>
+                
+                <div id="result"></div>
+                <div id="correct-answer" style="display: none; margin-top: 15px; padding: 15px; background: #fff3cd; border-radius: 6px; color: #856404; line-height: 1.5;">
+                    <strong>Chưa đúng rồi, hãy tham khảo đáp án:</strong> <br><span id="answer-text"></span>
+                </div>
+
+                <div class="completed-board">
+                    <h3 style="margin-top: 0; font-size: 16px; color: #2c3e50;">📝 Bài làm hoàn chỉnh của bạn:</h3>
+                    <div id="completed-text"></div>
+                </div>
+            </div>
+            <div id="no-lesson-selected" class="empty-state">Chọn một bài bên trái để bắt đầu luyện tập.</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, getDoc, query, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const firebaseConfig = {
             apiKey: "AIzaSyBH2igR6vckQuZrQwUf1Dw_Mp_E2P_ITH4",
             authDomain: "dictation-class.firebaseapp.com",
             projectId: "dictation-class",
